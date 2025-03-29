@@ -1,30 +1,31 @@
 {
-    "manifest_version": 3,
-    "name": "Panopto Caption Scraper",
-    "version": "1.0",
-    "description": "Scrapes captions from Panopto videos on uva.hosted.panopto.com",
-    "permissions": [
+  "manifest_version": 3,
+  "name": "Panopto Caption Scraper",
+  "version": "1.0",
+  "description": "Scrapes captions from Panopto videos on uva.hosted.panopto.com",
+  "permissions": [
       "activeTab",
       "scripting",
       "tabs"
-    ],
-    "host_permissions": [
-      "https://uva.hosted.panopto.com/*"
-    ],
-    "background": {
-      "service_worker": "background.js"
-    },
-    "action": {
+  ],
+  "host_permissions": [
+      "https://uva.hosted.panopto.com/*",
+      "https://api.groq.com/*"
+  ],
+  "content_security_policy": {
+      "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.groq.com/;"
+  },
+  "action": {
       "default_popup": "popup.html",
       "default_icon": {
-        "16": "icon16.png",
-        "48": "icon48.png",
-        "128": "icon128.png"
+          "16": "icon16.png",
+          "48": "icon48.png",
+          "128": "icon128.png"
       }
-    },
-    "icons": {
+  },
+  "icons": {
       "16": "icon16.png",
       "48": "icon48.png",
       "128": "icon128.png"
-    }
+  }
 }

@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const scrapeButton = document.getElementById("scrape-captions");
     const summarizeButton = document.getElementById("summarize-captions");
+
     if (scrapeButton) {
         scrapeButton.addEventListener("click", function () {
             chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -21,78 +22,140 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 if (videoId) {
                     const transcriptionUrl = `https://uva.hosted.panopto.com/Panopto/Pages/Transcription/GenerateSRT.ashx?id=${videoId}&language=0&clean=true`;
-                    fetchTranscription(transcriptionUrl);
+                    chrome.scripting.executeScript({
+                        target: { tabId: currentTab.id },
+                        function: fetchTranscription,
+                        args: [transcriptionUrl]
+                    }, (results) => {
+                        if (results && results[0] && results[0].result) {
+                            const captionsElement = document.getElementById("captions");
+                            captionsElement.textContent = results[0].result;
+                        } else {
+                            console.error("Failed to fetch transcription.");
+                        }
+                    });
                 } else {
                     console.error("Video ID not found in the URL.");
                 }
             });
         });
     }
-    // Summarize button actions 
+
     if (summarizeButton) {
         summarizeButton.addEventListener("click", function () {
-            if (lastTranscription) {
-                summarizeText(lastTranscription);
+            const captionsElement = document.getElementById("captions");
+            const captionsText = captionsElement.textContent;
+            if (captionsText) {
+                summarizeText(captionsText);
             } else {
                 document.getElementById("summary").textContent = "No captions available for summarization.";
             }
         });
     }
 
-    // Function to extract the video ID from the Panopto URL
     function extractVideoId(url) {
         const match = url.match(/id=([a-f0-9-]+)/);
         return match ? match[1] : null;
     }
 
-    // Function to fetch the transcription content
     function fetchTranscription(url) {
-        fetch(url)
+        return fetch(url)
             .then(response => response.text())
             .then(data => {
-                console.log("Transcription Content:", data);
-                const captionsElement = document.getElementById("captions");
-                captionsElement.textContent = data;
+                return data;
             })
             .catch(error => {
                 console.error("Error fetching transcription:", error);
-                const captionsElement = document.getElementById("captions");
-                captionsElement.textContent = "Failed to fetch transcription.";
+                return "Failed to fetch transcription.";
             });
     }
-    // AI function to summarize the text
-    function summarizeText(text) {
-        const apiKey = "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";  
-        const endpoint = "https://api.groq.com/v1/chat/completions";
 
-        const requestBody = {
-            model: "llama3-8b-3192",  
-            messages: [
-                { "role": "system", "content": "Summarize the text into bullet points with key information only." },
-                { "role": "user", "content": text }
-            ],
-            max_tokens: 200
+    function summarizeText(text) {
+        const apiKey = "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";  // Replace with your actual Groq API key
+        const endpoint = "https://api.groq.com/openai/v1/chat/completions";
+
+        // Split the text into smaller chunks (e.g., 2000 tokens per chunk)
+        const chunkSize = 2000;  // Adjust based on the model's token limit
+        const textChunks = splitTextIntoChunks(text, chunkSize);
+
+        // Array to store summaries of each chunk
+        const summaries = [];
+
+        // Function to process each chunk
+        const processChunk = (chunk) => {
+            const requestBody = {
+                model: "llama3-70b-8192",  // Updated model name
+                messages: [
+                    { "role": "system", "content": "Summarize the text into bullet points with key information only." },
+                    { "role": "user", "content": chunk }
+                ],
+                max_tokens: 6000  // Adjust based on your needs
+            };
+
+            return fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(requestBody)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.choices && data.choices.length > 0) {
+                    return data.choices[0].message.content;
+                } else {
+                    throw new Error("No choices returned from the API.");
+                }
+            });
         };
 
-        fetch(endpoint, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${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}`
-            },
-            body: JSON.stringify(requestBody)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.choices && data.choices.length > 0) {
-                document.getElementById("summary").textContent = data.choices[0].message.content;
-            } else {
-                document.getElementById("summary").textContent = "Failed to generate summary.";
+        // Process all chunks sequentially
+        const processAllChunks = async () => {
+            for (const chunk of textChunks) {
+                try {
+                    const summary = await processChunk(chunk);
+                    summaries.push(summary);
+                } catch (error) {
+                    console.error("Error processing chunk:", error);
+                    summaries.push(`Error processing chunk: ${error.message}`);
+                }
             }
-        })
-        .catch(error => {
-            console.error("Error calling Groq API:", error);
-            document.getElementById("summary").textContent = "Error generating summary.";
-        });
+
+            // Combine all summaries into a single result
+            const finalSummary = summaries.join("\n");
+            document.getElementById("summary").textContent = finalSummary;
+        };
+
+        // Start processing
+        processAllChunks();
+    }
+
+    // Helper function to split text into chunks based on token limits
+    function splitTextIntoChunks(text, chunkSize) {
+        const chunks = [];
+        let currentChunk = "";
+        const words = text.split(" ");
+
+        for (const word of words) {
+            if ((currentChunk + word).length < chunkSize) {
+                currentChunk += word + " ";
+            } else {
+                chunks.push(currentChunk.trim());
+                currentChunk = word + " ";
+            }
+        }
+
+        // Add the last chunk
+        if (currentChunk.trim().length > 0) {
+            chunks.push(currentChunk.trim());
+        }
+
+        return chunks;
     }
 });
