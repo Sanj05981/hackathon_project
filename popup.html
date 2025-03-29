@@ -1,10 +1,41 @@
-<link href="popup.css" rel="stylesheet" type="text/css" />
-<script type="module" src="popup.js"></script>
-
-<div class="container">
-  <div>
-    <div class="title">Your bookmarks for this video</div>
-
-    <div class="bookmarks" id="bookmarks"></div>
-  </div>
-</div>
+<!DOCTYPE html>
+ <html lang="en">
+ <head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Panopto Caption Scraper</title>
+   <style>
+     body {
+       font-family: Arial, sans-serif;
+       padding: 10px;
+       width: 300px;
+     }
+     #panopto-ui, #other-ui {
+       display: none;
+     }
+     #captions {
+       white-space: pre-wrap;
+       background: #f4f4f4;
+       padding: 10px;
+       border: 1px solid #ddd;
+       margin-top: 10px;
+       max-height: 200px;
+       overflow-y: auto;
+     }
+   </style>
+ </head>
+ <body>
+   <div id="panopto-ui">
+     <h1>Panopto Caption Scraper</h1>
+     <button id="scrape-captions">Scrape Captions</button>
+     <div id="captions"></div>
+   </div>
+ 
+   <div id="other-ui">
+     <h1>Oops!</h1>
+     <p>This extension only works on Panopto videos hosted at <strong>uva.hosted.panopto.com</strong>.</p>
+   </div>
+ 
+   <script src="popup.js"></script>
+ </body>
+ </html>
