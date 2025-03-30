@@ -1,43 +1,63 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Panopto Caption Scraper</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 10px;
-      width: 300px;
-    }
-    #panopto-ui, #other-ui {
-      display: none;
-    }
-    #captions {
-      white-space: pre-wrap;
-      background: #f4f4f4;
-      padding: 10px;
-      border: 1px solid #ddd;
-      margin-top: 10px;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-  </style>
+    <title>Panopto Caption Scraper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            width: 400px;
+            
+            padding: 15px;
+        }
+        h1 {
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        button {
+            margin: 5px 0;
+            padding: 8px 16px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #357ae8;
+        }
+        #captions {
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            white-space: pre-wrap;
+        }
+        #other-ui {
+            display: none;
+            text-align: center;
+            color: #666;
+        }
+        #panopto-ui {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-  <div id="panopto-ui">
-    <h1>Panopto Caption Scraper</h1>
-    <button id="scrape-captions">Scrape Captions</button>
-    <button id="summarize-captions">Summarize Captions</button>
-    <div id="captions"></div>
-    <div id="summary"></div>
-  </div>
-
-  <div id="other-ui">
-    <h1>Oops!</h1>
-    <p>This extension only works on Panopto videos hosted at <strong>uva.hosted.panopto.com</strong>.</p>
-  </div>
-
-  <script src="popup.js"></script>
+    <h1>PanaptoPal</h1>
+    
+    <div id="panopto-ui">
+        <button id="scrape-captions">Create PanaptoPal</button>
+        <button id="summarize-captions">Summarize Captions</button>
+        <div id="captions"></div>
+        <!-- Chat container will be added here dynamically -->
+    </div>
+    
+    <div id="other-ui">
+        <p>Oops!</p>
+        <p>This extension only works on Panopto videos hosted at <b>uva.hosted.panopto.com</b>.</p>
+    </div>
+    
+    <script src="popup.js"></script>
 </body>
 </html>

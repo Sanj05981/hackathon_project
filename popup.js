@@ -1,4 +1,8 @@
 document.addEventListener("DOMContentLoaded", function () {
+    // Store the transcript globally so it's accessible for the chat
+    let globalTranscript = "";
+    
+    // Set up UI toggle based on URL
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         const currentTab = tabs[0];
         const panoptoUI = document.getElementById("panopto-ui");
@@ -11,9 +15,8 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    // Scrape captions button event handler
     const scrapeButton = document.getElementById("scrape-captions");
-    const summarizeButton = document.getElementById("summarize-captions");
-
     if (scrapeButton) {
         scrapeButton.addEventListener("click", function () {
             chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -22,140 +25,437 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 if (videoId) {
                     const transcriptionUrl = `https://uva.hosted.panopto.com/Panopto/Pages/Transcription/GenerateSRT.ashx?id=${videoId}&language=0&clean=true`;
-                    chrome.scripting.executeScript({
-                        target: { tabId: currentTab.id },
-                        function: fetchTranscription,
-                        args: [transcriptionUrl]
-                    }, (results) => {
-                        if (results && results[0] && results[0].result) {
-                            const captionsElement = document.getElementById("captions");
-                            captionsElement.textContent = results[0].result;
-                        } else {
-                            console.error("Failed to fetch transcription.");
-                        }
-                    });
+                    fetchTranscription(transcriptionUrl);
                 } else {
                     console.error("Video ID not found in the URL.");
+                    updateCaptionsDisplay("Error: Video ID not found in the URL.", true);
                 }
             });
         });
     }
 
+    // Summarize captions button event handler
+    const summarizeButton = document.getElementById("summarize-captions");
     if (summarizeButton) {
-        summarizeButton.addEventListener("click", function () {
-            const captionsElement = document.getElementById("captions");
-            const captionsText = captionsElement.textContent;
-            if (captionsText) {
-                summarizeText(captionsText);
-            } else {
-                document.getElementById("summary").textContent = "No captions available for summarization.";
+        summarizeButton.addEventListener("click", function() {
+            console.log("Summarize button clicked");
+            
+            if (!globalTranscript || globalTranscript.trim() === "") {
+                updateCaptionsDisplay("Please scrape captions first before summarizing.", true);
+                return;
             }
+            
+            // Show loading state
+            updateCaptionsDisplay("Generating summary... Please wait...", false);
+            
+            // Define API key within this function's scope to avoid reference errors
+            const groqApiKey = "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"; // Example key (not real)
+            
+            
+
+            summarizeWithGroq(globalTranscript, groqApiKey);
         });
+    } else {
+        console.error("Summarize button not found in DOM");
     }
 
+    // Function to extract the video ID from the Panopto URL
     function extractVideoId(url) {
         const match = url.match(/id=([a-f0-9-]+)/);
         return match ? match[1] : null;
     }
 
+    // Function to fetch the transcription content
     function fetchTranscription(url) {
-        return fetch(url)
-            .then(response => response.text())
+        updateCaptionsDisplay("Fetching transcript...", false);
+        
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.text();
+            })
             .then(data => {
-                return data;
+                console.log("Transcription Content Length:", data.length);
+                // Clean the transcript and store it globally
+                globalTranscript = cleanTranscript(data);
+                // Update the captions display
+                updateCaptionsDisplay("Successfully Scraped Captions!", false);
+                //updateCaptionsDisplay("", false);
+                //document.getElementById('captions').remove();
+                // Create and show the chat interface
+                createChatInterface();
             })
             .catch(error => {
                 console.error("Error fetching transcription:", error);
-                return "Failed to fetch transcription.";
+                updateCaptionsDisplay("Failed to fetch transcription: " + error.message, true);
             });
     }
 
-    function summarizeText(text) {
-        const apiKey = "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";  // Replace with your actual Groq API key
-        const endpoint = "https://api.groq.com/openai/v1/chat/completions";
+    // Helper function to update the captions display
+    function updateCaptionsDisplay(content, isError) {
+        const captionsElement = document.getElementById("captions");
+        if (!captionsElement) {
+            console.error("Captions element not found");
+            return;
+        }
+        
+        if (isError) {
+            captionsElement.style.color = "red";
+        } else {
+            captionsElement.style.color = "black";
+        }
+        
+        captionsElement.textContent = content;
+    }
 
-        // Split the text into smaller chunks (e.g., 2000 tokens per chunk)
-        const chunkSize = 2000;  // Adjust based on the model's token limit
-        const textChunks = splitTextIntoChunks(text, chunkSize);
+    // Clean SRT transcript format (remove timestamps and numbers)
+    function cleanTranscript(srtTranscript) {
+        try {
+            // Enhanced regex to better handle SRT format
+            return srtTranscript
+                .replace(/^\d+$/gm, '') // Remove sequence numbers
+                .replace(/\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}/g, '') // Remove timestamps
+                .replace(/^\s*[\r\n]/gm, '') // Remove empty lines
+                .trim();
+        } catch (error) {
+            console.error("Error cleaning transcript:", error);
+            return srtTranscript; // Return original if there's an error
+        }
+    }
 
-        // Array to store summaries of each chunk
-        const summaries = [];
-
-        // Function to process each chunk
-        const processChunk = (chunk) => {
-            const requestBody = {
-                model: "llama3-70b-8192",  // Updated model name
-                messages: [
-                    { "role": "system", "content": "Summarize the text into bullet points with key information only." },
-                    { "role": "user", "content": chunk }
-                ],
-                max_tokens: 6000  // Adjust based on your needs
-            };
-
-            return fetch(endpoint, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${apiKey}`
+    // Function to summarize transcript using Groq API
+    function summarizeWithGroq(transcript, apiKey) {
+        console.log("Starting Groq API request for summarization");
+        
+        // Check if API key is set
+        if (!apiKey) {
+            console.error("Groq API key not provided");
+            updateCaptionsDisplay("Error: API key not provided. Please set your Groq API key in the extension.", true);
+            return;
+        }
+        
+        // Limit transcript length if too long (API may have limits)
+        const maxLength = 16000; // Maximum length for API input
+        const truncatedTranscript = transcript.length > maxLength 
+            ? transcript.substring(0, maxLength) + "... (truncated for API limits)"
+            : transcript;
+            
+        const requestData = {
+            model: 'gemma2-9b-it', // Or another Groq model
+            messages: [
+                {
+                    role: 'system',
+                    content: 'You are a helpful assistant that summarizes lecture transcripts. Create a concise summary with key points only using regular text formatting with bullet points (•). Use the format: • Point 1\n• Point 2. Do not include any HTML, markdown, or styling. Do not include introduction text, just the direct bullet points of key information.'
                 },
-                body: JSON.stringify(requestBody)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                {
+                    role: 'user',
+                    content: `Please summarize the following lecture transcript and provide only the key points with bullet points:\n\n${truncatedTranscript}`
                 }
-                return response.json();
-            })
-            .then(data => {
-                if (data.choices && data.choices.length > 0) {
-                    return data.choices[0].message.content;
-                } else {
-                    throw new Error("No choices returned from the API.");
-                }
-            });
+            ],
+            temperature: 0.3,
+            max_tokens: 1024
         };
-
-        // Process all chunks sequentially
-        const processAllChunks = async () => {
-            for (const chunk of textChunks) {
-                try {
-                    const summary = await processChunk(chunk);
-                    summaries.push(summary);
-                } catch (error) {
-                    console.error("Error processing chunk:", error);
-                    summaries.push(`Error processing chunk: ${error.message}`);
-                }
+        
+        fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => {
+            console.log("Received response from Groq API:", response.status);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error(`API error (${response.status}): ${text}`);
+                });
             }
-
-            // Combine all summaries into a single result
-            const finalSummary = summaries.join("\n");
-            document.getElementById("summary").textContent = finalSummary;
-        };
-
-        // Start processing
-        processAllChunks();
+            return response.json();
+        })
+        .then(data => {
+            console.log("Groq API success");
+            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                throw new Error("Unexpected API response format");
+            }
+            
+            const summary = data.choices[0].message.content;
+            updateCaptionsDisplay(summary, false);
+        })
+        .catch(error => {
+            console.error("Error with Groq API:", error);
+            updateCaptionsDisplay("Failed to generate summary. Error: " + error.message, true);
+        });
     }
-
-    // Helper function to split text into chunks based on token limits
-    function splitTextIntoChunks(text, chunkSize) {
-        const chunks = [];
-        let currentChunk = "";
-        const words = text.split(" ");
-
-        for (const word of words) {
-            if ((currentChunk + word).length < chunkSize) {
-                currentChunk += word + " ";
-            } else {
-                chunks.push(currentChunk.trim());
-                currentChunk = word + " ";
+    
+    // Function to create chat interface
+    // Function to create chat interface
+    function createChatInterface() {
+        console.log("Creating chat interface");
+        
+        // Check if chat container already exists
+        if (document.getElementById("chat-container")) {
+            document.getElementById("chat-container").style.display = "block";
+            // Adjust popup height
+            document.body.style.height = "600px";
+            return;
+        }
+        
+        // Create chat container
+        const chatContainer = document.createElement("div");
+        chatContainer.id = "chat-container";
+        chatContainer.style.cssText = `
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        `;
+        
+        // Chat title with clear button
+        const chatTitle = document.createElement("div");
+        const titleText = document.createElement("span");
+        titleText.textContent = "Ask questions about this video";
+        chatTitle.style.cssText = `
+            background-color: #f0f0f0;
+            padding: 10px;
+            font-weight: bold;
+            border-bottom: 1px solid #ccc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+        
+        // Clear button (styled like send button)
+        const clearButton = document.createElement("button");
+        clearButton.textContent = "Clear";
+        clearButton.title = "Clear chat";
+        clearButton.style.cssText = `
+            background-color: #FF0000;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background-color 0.2s;
+        `;
+        clearButton.addEventListener("mouseenter", () => {
+            clearButton.style.backgroundColor = "#bf0000";
+        });
+        clearButton.addEventListener("mouseleave", () => {
+            clearButton.style.backgroundColor = "#FF0000";
+        });
+        clearButton.addEventListener("click", clearChat);
+        
+        chatTitle.appendChild(titleText);
+        chatTitle.appendChild(clearButton);
+        chatContainer.appendChild(chatTitle);
+        
+        // Chat messages area
+        const chatMessages = document.createElement("div");
+        chatMessages.id = "chat-messages";
+        chatMessages.style.cssText = `
+            height: 250px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #f9f9f9;
+        `;
+        chatContainer.appendChild(chatMessages);
+        
+        // Input area
+        const inputContainer = document.createElement("div");
+        inputContainer.style.cssText = `
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ccc;
+            background-color: #fff;
+        `;
+        
+        const chatInput = document.createElement("input");
+        chatInput.id = "chat-input";
+        chatInput.type = "text";
+        chatInput.placeholder = "Type your question here...";
+        chatInput.style.cssText = `
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 8px;
+        `;
+        
+        const sendButton = document.createElement("button");
+        sendButton.textContent = "Send";
+        sendButton.style.cssText = `
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        `;
+        
+        inputContainer.appendChild(chatInput);
+        inputContainer.appendChild(sendButton);
+        chatContainer.appendChild(inputContainer);
+        
+        // Find a good place to insert the chat container
+        const panoptoUI = document.getElementById("panopto-ui");
+        panoptoUI.appendChild(chatContainer);
+        
+        // Adjust the popup height to accommodate the chat interface
+        document.body.style.height = "600px";
+        
+        // Add event listeners for chat functionality
+        sendButton.addEventListener("click", sendChatMessage);
+        chatInput.addEventListener("keypress", function(e) {
+            if (e.key === "Enter") {
+                sendChatMessage();
             }
+        });
+        
+        // Initial assistant message
+        addChatMessage("assistant", "Hi! I've analyzed the transcript. What questions do you have about the content?");
+    }
+    
+    // Clear chat function
+    function clearChat() {
+        const chatMessages = document.getElementById("chat-messages");
+        if (chatMessages) {
+            chatMessages.innerHTML = "";
+            // Add back the initial assistant message
+            addChatMessage("assistant", "Hi! I've analyzed the transcript. What questions do you have about the content?");
         }
-
-        // Add the last chunk
-        if (currentChunk.trim().length > 0) {
-            chunks.push(currentChunk.trim());
+    }
+    
+    // Function to send chat message
+    function sendChatMessage() {
+        const chatInput = document.getElementById("chat-input");
+        const userMessage = chatInput.value.trim();
+        
+        if (!userMessage) return;
+        
+        // Add user message to chat
+        addChatMessage("user", userMessage);
+        
+        // Clear input
+        chatInput.value = "";
+        
+        // Show thinking message
+        addChatMessage("assistant", "Thinking...", "thinking-message");
+        
+        // Send to API
+        askGroqAboutTranscript(userMessage, globalTranscript);
+    }
+    
+    // Function to add message to chat
+    function addChatMessage(role, content, messageId) {
+        const chatMessages = document.getElementById("chat-messages");
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `chat-message ${role}-message`;
+        if (messageId) {
+            messageDiv.id = messageId;
         }
-
-        return chunks;
+        
+        messageDiv.style.cssText = `
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 18px;
+            max-width: 80%;
+            ${role === 'user' ? 
+                'background-color: #e3f2fd; margin-left: auto; text-align: right;' : 
+                'background-color: #f1f0f0;'}
+        `;
+        
+        messageDiv.textContent = content;
+        chatMessages.appendChild(messageDiv);
+        
+        // Scroll to bottom
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // Function to replace a specific message (used for the "thinking" message)
+    function replaceMessage(messageId, newContent) {
+        const messageElement = document.getElementById(messageId);
+        if (messageElement) {
+            messageElement.textContent = newContent;
+        }
+    }
+    
+    // Function to ask Groq about the transcript
+    function askGroqAboutTranscript(question, transcript) {
+        console.log("Asking Groq about the transcript");
+        
+        // API key
+        const groqApiKey = "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"; 
+        
+        // Check if API key is set
+        if (!groqApiKey) {
+            replaceMessage("thinking-message", "Error: API key not provided.");
+            return;
+        }
+        
+        // Limit transcript length if too long
+        const maxLength = 16000;
+        const truncatedTranscript = transcript.length > maxLength 
+            ? transcript.substring(0, maxLength) + "... (truncated for API limits)"
+            : transcript;
+            
+        const requestData = {
+            model: 'gemma2-9b-it',
+            messages: [
+                {
+                    role: 'system',
+                    content: 'You are a helpful assistant that answers questions about lecture content. Use only the information provided in the transcript to answer. If the answer cannot be found in the transcript, say so clearly. Be concise and accurate.'
+                },
+                {
+                    role: 'user',
+                    content: `Here is a lecture transcript:\n\n${truncatedTranscript}\n\nQuestion: ${question}`
+                }
+            ],
+            temperature: 0.3,
+            max_tokens: 1024
+        };
+        
+        fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${groqApiKey}`
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error(`API error (${response.status}): ${text}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                throw new Error("Unexpected API response format");
+            }
+            
+            const answer = data.choices[0].message.content;
+            
+            // Replace thinking message with the actual answer
+            const thinkingMessage = document.getElementById("thinking-message");
+            if (thinkingMessage) {
+                thinkingMessage.remove();
+            }
+            
+            // Add the answer
+            addChatMessage("assistant", answer);
+        })
+        .catch(error => {
+            console.error("Error with Groq API chat:", error);
+            
+            // Replace thinking message with error
+            replaceMessage("thinking-message", `Error getting answer: ${error.message}`);
+        });
     }
 });
