@@ -1,161 +1,457 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PanoptoPal</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            width: 400px;
-            padding: 15px;
-        }
-        h1 {
-            font-size: 18px;
-            margin-bottom: 15px;
-        }
-        button {
-            margin: 5px 0;
-            padding: 8px 16px;
-            background-color: #4285f4;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+        /* Base Tailwind-like styles */
+        :root {
+            --uva-navy: #232D4B;
+            --uva-orange: #E57200;
+            --uva-blue: #0077C8;
+            --uva-light-blue: #6CACE4;
+            --uva-gray: #616161;
+            --uva-light-gray: #F1F1F1;
         }
         
-        #captions {
-            margin-top: 10px;
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
-            white-space: pre-wrap;
+        /* Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        #other-ui {
-        display: none;
-        text-align: center;
-        color: #666;
-        padding: 20px;
-    }
-    
-    #other-ui p {
-        font-size: 15px; /* Increased font size */
-        margin: 10px 0;
-        line-height: 1.5;
-    }
-    
-    #other-ui b {
-        color: #2a5885;
-        font-weight: bold;
-    }
-    
-    /* Add an icon to make it more visual */
-    
-        #panopto-ui {
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            width: 384px; /* w-96 equivalent */
+            color: #1a202c;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Utility classes - minimal Tailwind-like classes */
+        .hidden {
             display: none;
         }
+        
+        .flex {
+            display: flex;
+        }
+        
+        .flex-col {
+            flex-direction: column;
+        }
+        
+        .items-center {
+            align-items: center;
+        }
+        
+        .justify-between {
+            justify-content: space-between;
+        }
+        
+        .justify-center {
+            justify-content: center;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .space-y-2 > * + * {
+            margin-top: 0.5rem;
+        }
+        
+        .ml-auto {
+            margin-left: auto;
+        }
+        
+        .mb-2 {
+            margin-bottom: 0.5rem;
+        }
+        
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+        
+        .mr-2 {
+            margin-right: 0.5rem;
+        }
+        
+        .mx-auto {
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .p-4 {
+            padding: 1rem;
+        }
+        
+        .p-6 {
+            padding: 1.5rem;
+        }
+        
+        .p-3 {
+            padding: 0.75rem;
+        }
+        
+        .px-4 {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        
+        .py-3 {
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+        }
+        
+        .py-2 {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        
+        .px-3 {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+        
+        .py-1 {
+            padding-top: 0.25rem;
+            padding-bottom: 0.25rem;
+        }
+        
+        .rounded {
+            border-radius: 0.25rem;
+        }
+        
+        .rounded-lg {
+            border-radius: 0.5rem;
+        }
+        
+        .rounded-md {
+            border-radius: 0.375rem;
+        }
+        
+        .rounded-l-md {
+            border-top-left-radius: 0.375rem;
+            border-bottom-left-radius: 0.375rem;
+        }
+        
+        .rounded-r-md {
+            border-top-right-radius: 0.375rem;
+            border-bottom-right-radius: 0.375rem;
+        }
+        
+        .border {
+            border-width: 1px;
+            border-style: solid;
+        }
+        
+        .border-t {
+            border-top-width: 1px;
+            border-top-style: solid;
+        }
+        
+        .border-gray-300 {
+            border-color: #e2e8f0;
+        }
+        
+        .border-red-500 {
+            border-color: #f56565;
+        }
+        
+        .bg-white {
+            background-color: #ffffff;
+        }
+        
+        .bg-red-50 {
+            background-color: #fef2f2;
+        }
+        
+        .text-red-800 {
+            color: #9b1c1c;
+        }
+        
+        .min-h-20 {
+            min-height: 5rem;
+        }
+        
+        .max-h-40 {
+            max-height: 10rem;
+        }
+        
+        .h-64 {
+            height: 16rem;
+        }
+        
+        .w-32 {
+            width: 8rem;
+        }
+        
+        .h-32 {
+            height: 8rem;
+        }
+        
+        .h-6 {
+            height: 1.5rem;
+        }
+        
+        .w-6 {
+            width: 1.5rem;
+        }
+        
+        .h-5 {
+            height: 1.25rem;
+        }
+        
+        .w-5 {
+            width: 1.25rem;
+        }
+        
+        .inline-block {
+            display: inline-block;
+        }
+        
+        .overflow-y-auto {
+            overflow-y: auto;
+        }
+        
+        .overflow-hidden {
+            overflow: hidden;
+        }
+        
+        .text-white {
+            color: #ffffff;
+        }
+        
+        .text-sm {
+            font-size: 0.875rem;
+        }
+        
+        .text-xl {
+            font-size: 1.25rem;
+        }
+        
+        .font-bold {
+            font-weight: 700;
+        }
+        
+        .font-medium {
+            font-weight: 500;
+        }
+        
+        .shadow-md {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .focus\:outline-none:focus {
+            outline: 2px solid transparent;
+            outline-offset: 2px;
+        }
+        
+        .focus\:ring-2:focus {
+            --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+            --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+            box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+        }
+        
+        .focus\:ring-uva-blue:focus {
+            --tw-ring-color: var(--uva-blue);
+        }
+        
+        .transition {
+            transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 150ms;
+        }
+        
+        .duration-200 {
+            transition-duration: 200ms;
+        }
+        
+        .flex-grow {
+            flex-grow: 1;
+        }
+        
+        .cursor-not-allowed {
+            cursor: not-allowed;
+        }
+        
+        .opacity-70 {
+            opacity: 0.7;
+        }
+        
+        .max-w-4\/5 {
+            max-width: 80%;
+        }
+        
+        .mt-4 {
+            margin-top: 1rem;
+        }
+        
+        /* UVA specific classes */
+        .bg-uva-navy {
+            background-color: var(--uva-navy);
+        }
+        
+        .bg-uva-orange {
+            background-color: var(--uva-orange);
+        }
+        
+        .bg-uva-blue {
+            background-color: var(--uva-blue);
+        }
+        
+        .bg-uva-light-blue {
+            background-color: var(--uva-light-blue);
+        }
+        
+        .bg-uva-light-gray {
+            background-color: var(--uva-light-gray);
+        }
+        
+        .text-uva-navy {
+            color: var(--uva-navy);
+        }
+        
+        .text-uva-orange {
+            color: var(--uva-orange);
+        }
+        
+        .hover\:bg-uva-light-blue:hover {
+            background-color: var(--uva-light-blue);
+        }
+        
+        .hover\:bg-red-700:hover {
+            background-color: #c53030;
+        }
+        
+        /* Animation */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Component specific styles */
+        .thinking-spinner {
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Code styling */
         pre {
-        background-color: #f5f5f5;
-        padding: 8px;
-        border-radius: 4px;
-        overflow-x: auto;
-        margin: 8px 0;
-    }
-    
-    code {
-        font-family: 'Courier New', monospace;
-        background-color: #f5f5f5;
-        padding: 2px 4px;
-        border-radius: 2px;
-        font-size: 0.9em;
-    }
-    
-    strong {
-        font-weight: bold;
-    }
-    
-    em {
-        font-style: italic;
-    }
-    .chat-message p {
-    margin: 4px 0;
-    line-height: 1.4;
-}
-
-.chat-message code {
-    font-family: 'Courier New', monospace;
-    background-color: #f5f5f5;
-    padding: 2px 4px;
-    border-radius: 2px;
-    font-size: 0.9em;
-}
-.warning-icon {
-        width: 120px;
-        height: 120px;
-        display: block;
-        margin: 0 auto 15px auto;
-        /*filter: hue-rotate(180deg) saturate(200%); /* Optional: make it match your color scheme */
-    }
-.chat-message pre code {
-    display: block;
-    padding: 8px;
-    margin: 8px 0;
-    overflow-x: auto;
-}
-
-.chat-message strong {
-    font-weight: bold;
-}
-
-.chat-message em {
-    font-style: italic;
-}
-
-    button:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-        filter: none;
-        -webkit-filter: none;
-    }
-    button:not(:disabled):hover {
-        background-color: #87CEFA !important; /* Light blue */
-    }
-    .thinking-spinner {
-    width: 32px;
-    height: 32px;
-    margin-right: 8px;
-    vertical-align: middle;
-    animation: spin 1s linear infinite;
-  }
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  
-  .thinking-message {
-    display: flex;
-    align-items: center;
-  }
+            background-color: #f5f5f5;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+        
+        code {
+            font-family: 'Courier New', monospace;
+            background-color: #f5f5f5;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.125rem;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
-    <h1>PanaptoPal</h1>
-    
-    <div id="panopto-ui">
-        <button id="scrape-captions">Create PanaptoPal</button>
-        <button id="summarize-captions">Summarize Video</button>
-        <div id="captions"></div>
+    <!-- Header -->
+    <header class="bg-uva-navy text-white p-4 shadow-md">
+        <div class="flex items-center justify-between">
+            <h1 class="text-xl font-bold">PanoptoPal</h1>
+            <img src="panopto_logo.png" alt="PanoptoPal" class="h-6 w-6">
+        </div>
+    </header>
+
+    <!-- Panopto UI - Only shown on Panopto video pages -->
+    <div id="panopto-ui" class="p-4 hidden">
+        <div class="mb-4 flex flex-col space-y-2">
+            <button id="scrape-captions" class="bg-uva-orange hover:bg-uva-light-blue text-white font-medium py-2 px-4 rounded transition duration-200 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" />
+                </svg>
+                Create PanoptoPal
+            </button>
+            <button id="summarize-captions" class="bg-uva-blue hover:bg-uva-light-blue text-white font-medium py-2 px-4 rounded transition duration-200 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                </svg>
+                Summarize Video
+            </button>
+        </div>
+        
+        <!-- Captions display area -->
+        <div id="captions" class="border border-gray-300 rounded-md p-3 min-h-20 max-h-40 overflow-y-auto bg-uva-light-gray mb-4 hidden"></div>
+        
         <!-- Chat container will be added here dynamically -->
     </div>
     
-    <div id="other-ui">
-        <img src="panopto_logo_sad_white_bg.png" alt="Warning" class="warning-icon">
-        <p>This extension only works with</p>
-        <p><b>UVA Panopto</b> video pages.</p>
-        <p>Please navigate to a Panopto video on</p>
-        <p><b>uva.hosted.panopto.com</b> to use this tool.</p>
-    </div>  
-    
+    <!-- Non-Panopto UI - Shown when not on a Panopto video page -->
+    <div id="other-ui" class="hidden p-6 text-center">
+        <img src="panopto_logo_sad_white_bg.png" alt="Warning" class="w-32 h-32 mx-auto mb-4">
+        <div class="text-uva-navy font-medium space-y-2">
+            <p>This extension only works with</p>
+            <p class="text-uva-orange font-bold">UVA Panopto</p>
+            <p>video pages.</p>
+            <p>Please navigate to a Panopto video on</p>
+            <p class="text-uva-orange font-bold">uva.hosted.panopto.com</p>
+            <p>to use this tool.</p>
+        </div>
+    </div>
+
+    <!-- Chat template - Will be inserted dynamically -->
+    <template id="chat-template">
+        <div id="chat-container" class="border border-gray-300 rounded-lg overflow-hidden mt-4">
+            <!-- Chat header -->
+            <div class="bg-uva-navy text-white px-4 py-3 flex justify-between items-center">
+                <span class="font-medium">Ask questions about this video</span>
+                <button id="clear-chat" class="bg-red-600 hover:bg-red-700 text-black px-3 py-1 rounded text-sm transition duration-200">
+                    Clear
+                </button>   
+            </div>
+            
+            <!-- Chat messages -->
+            <div id="chat-messages" class="h-64 overflow-y-auto p-4 bg-uva-light-gray"></div>
+            
+            <!-- Chat input -->
+            <div class="flex border-t border-gray-300 p-3 bg-white">
+                <input 
+                    id="chat-input" 
+                    type="text" 
+                    placeholder="Type your question here..." 
+                    class="flex-grow px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-uva-blue"
+                >
+                <button 
+                    id="send-button" 
+                    class="bg-uva-blue hover:bg-uva-light-blue text-white px-4 py-2 rounded-r-md transition duration-200"
+                >
+                    Send
+                </button>
+            </div>
+        </div>
+    </template>
+
     <script src="popup.js"></script>
 </body>
 </html>

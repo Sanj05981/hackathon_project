@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PanoptoPal",
-  "version": "1.0",
-  "description": "Scrapes captions from Panopto videos on uva.hosted.panopto.com",
+  "version": "1.1",
+  "description": "AI assistant for UVA Panopto videos that helps understand and analyze lecture content",
   "permissions": [
     "activeTab",
     "scripting",
