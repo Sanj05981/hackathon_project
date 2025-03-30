@@ -1,18 +1,28 @@
 document.addEventListener("DOMContentLoaded", function () {
-    // Store the transcript globally so it's accessible for the chat
     let globalTranscript = "";
+    let chatHistory = [];
     
-    // Set up UI toggle based on URL
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         const currentTab = tabs[0];
         const panoptoUI = document.getElementById("panopto-ui");
         const otherUI = document.getElementById("other-ui");
 
         if (currentTab && currentTab.url.includes("https://uva.hosted.panopto.com/Panopto/Pages/Viewer.aspx")) {
-            panoptoUI.style.display = "block";
-        } else {
-            otherUI.style.display = "block";
+        panoptoUI.style.display = "block";
+        document.body.style.width = "400px"; // Standard width
+        document.body.style.fontSize = "14px";
+        
+        const videoId = extractVideoId(currentTab.url);
+        if (videoId) {
+            loadTranscript(videoId);
+            loadChatHistory(videoId);
         }
+    } else {
+        otherUI.style.display = "block";
+        panoptoUI.style.display = "none";
+        document.body.style.width = "350px"; // Slightly narrower for message
+        document.body.style.fontSize = "15px"; // Slightly larger for message
+    }
     });
 
     // Scrape captions button event handler
@@ -25,7 +35,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 if (videoId) {
                     const transcriptionUrl = `https://uva.hosted.panopto.com/Panopto/Pages/Transcription/GenerateSRT.ashx?id=${videoId}&language=0&clean=true`;
-                    fetchTranscription(transcriptionUrl);
+                    fetchTranscription(transcriptionUrl, videoId);
                 } else {
                     console.error("Video ID not found in the URL.");
                     updateCaptionsDisplay("Error: Video ID not found in the URL.", true);
@@ -45,14 +55,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
             
-            // Show loading state
             updateCaptionsDisplay("Generating summary... Please wait...", false);
             
-            // Define API key within this function's scope to avoid reference errors
-            const groqApiKey = "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"; // Example key (not real)
+            const groqApiKey = "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"; 
             
-            
-
             summarizeWithGroq(globalTranscript, groqApiKey);
         });
     } else {
@@ -65,31 +71,134 @@ document.addEventListener("DOMContentLoaded", function () {
         return match ? match[1] : null;
     }
 
+    // Function to load stored transcript
+    function loadTranscript(videoId) {
+        const storageKey = `transcript_${videoId}`;
+        chrome.storage.local.get([storageKey, `processed_${videoId}`], function(result) {
+            if (result[storageKey]) {
+                console.log("Loading stored transcript");
+                globalTranscript = result[storageKey];
+                updateCaptionsDisplay("Transcript loaded from storage.", false);
+                
+                // Check if this video was already processed
+                if (result[`processed_${videoId}`]) {
+                    updateScrapeButtonState(true);
+                }
+                
+                createChatInterface();
+            }
+        });
+    }
+    
+    // Function to save transcript to storage
+    function saveTranscript(videoId, transcript) {
+        const storageKey = `transcript_${videoId}`;
+        const data = {};
+        data[storageKey] = transcript;
+        
+        chrome.storage.local.set(data, function() {
+            console.log("Transcript saved to storage");
+        });
+    }
+    
+    // Function to load chat history
+    function loadChatHistory(videoId) {
+        const storageKey = `chat_${videoId}`;
+        chrome.storage.local.get([storageKey], function(result) {
+            if (result[storageKey]) {
+                console.log("Loading stored chat history");
+                chatHistory = result[storageKey];
+                
+                // If chat interface exists, populate it with history
+                const chatMessages = document.getElementById("chat-messages");
+                if (chatMessages) {
+                    populateChatHistory();
+                }
+            } else {
+                chatHistory = [];
+            }
+        });
+    }
+    
+    // Function to save chat history
+    function saveChatHistory(videoId) {
+        const storageKey = `chat_${videoId}`;
+        const data = {};
+        data[storageKey] = chatHistory;
+        
+        chrome.storage.local.set(data, function() {
+            console.log("Chat history saved to storage");
+        });
+    }
+    
+    // Function to populate chat with history
+    function populateChatHistory() {
+        const chatMessages = document.getElementById("chat-messages");
+        if (!chatMessages) return;
+        
+        chatMessages.innerHTML = "";
+        
+        chatHistory.forEach(message => {
+            const messageDiv = document.createElement("div");
+            messageDiv.className = `chat-message ${message.role}-message`;
+            
+            messageDiv.style.cssText = `
+                margin-bottom: 10px;
+                padding: 8px 12px;
+                border-radius: 18px;
+                max-width: 80%;
+                ${message.role === 'user' ? 
+                    'background-color: #e3f2fd; margin-left: auto; text-align: right;' : 
+                    'background-color: #f1f0f0;'}
+            `;
+            
+            // Use the stored formatted content if available
+            messageDiv.innerHTML = message.formatted || renderEnhancedMarkdown(message.raw || message.content);
+            chatMessages.appendChild(messageDiv);
+        });
+        
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
     // Function to fetch the transcription content
-    function fetchTranscription(url) {
+    function fetchTranscription(url, videoId) {
+        updateScrapeButtonState(true); // Disable button immediately when clicked
         updateCaptionsDisplay("Fetching transcript...", false);
         
         fetch(url)
             .then(response => {
                 if (!response.ok) {
+                    updateScrapeButtonState(false); // Re-enable if error
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 return response.text();
             })
             .then(data => {
                 console.log("Transcription Content Length:", data.length);
-                // Clean the transcript and store it globally
                 globalTranscript = cleanTranscript(data);
-                // Update the captions display
+                saveTranscript(videoId, globalTranscript);
+                
+                // Mark this video as processed
+                chrome.storage.local.set({ [`processed_${videoId}`]: true }, () => {
+                    console.log("Marked video as processed");
+                });
+                
                 updateCaptionsDisplay("Successfully Scraped Captions!", false);
-                //updateCaptionsDisplay("", false);
-                //document.getElementById('captions').remove();
-                // Create and show the chat interface
+                updateScrapeButtonState(true); // Ensure button stays disabled
+                
                 createChatInterface();
+                
+                // Initialize chat history if empty
+                if (chatHistory.length === 0) {
+                    const welcomeMessage = addChatMessage("assistant", "Hi! I've analyzed the transcript. What questions do you have about the content?");
+                    chatHistory.push(welcomeMessage);
+                    saveChatHistory(videoId);
+                }
             })
             .catch(error => {
                 console.error("Error fetching transcription:", error);
                 updateCaptionsDisplay("Failed to fetch transcription: " + error.message, true);
+                updateScrapeButtonState(false); // Re-enable on error
             });
     }
 
@@ -100,7 +209,6 @@ document.addEventListener("DOMContentLoaded", function () {
             console.error("Captions element not found");
             return;
         }
-        
         if (isError) {
             captionsElement.style.color = "red";
         } else {
@@ -121,15 +229,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 .trim();
         } catch (error) {
             console.error("Error cleaning transcript:", error);
-            return srtTranscript; // Return original if there's an error
+            return srtTranscript; 
         }
     }
 
     // Function to summarize transcript using Groq API
     function summarizeWithGroq(transcript, apiKey) {
         console.log("Starting Groq API request for summarization");
-        
-        // Check if API key is set
         if (!apiKey) {
             console.error("Groq API key not provided");
             updateCaptionsDisplay("Error: API key not provided. Please set your Groq API key in the extension.", true);
@@ -137,13 +243,13 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         
         // Limit transcript length if too long (API may have limits)
-        const maxLength = 16000; // Maximum length for API input
+        const maxLength = 16000; 
         const truncatedTranscript = transcript.length > maxLength 
             ? transcript.substring(0, maxLength) + "... (truncated for API limits)"
             : transcript;
             
         const requestData = {
-            model: 'gemma2-9b-it', // Or another Groq model
+            model: 'gemma2-9b-it', 
             messages: [
                 {
                     role: 'system',
@@ -191,19 +297,15 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     
     // Function to create chat interface
-    // Function to create chat interface
     function createChatInterface() {
         console.log("Creating chat interface");
-        
-        // Check if chat container already exists
         if (document.getElementById("chat-container")) {
             document.getElementById("chat-container").style.display = "block";
-            // Adjust popup height
+            populateChatHistory();
             document.body.style.height = "600px";
             return;
         }
         
-        // Create chat container
         const chatContainer = document.createElement("div");
         chatContainer.id = "chat-container";
         chatContainer.style.cssText = `
@@ -214,10 +316,7 @@ document.addEventListener("DOMContentLoaded", function () {
             font-family: Arial, sans-serif;
         `;
         
-        // Chat title with clear button
         const chatTitle = document.createElement("div");
-        const titleText = document.createElement("span");
-        titleText.textContent = "Ask questions about this video";
         chatTitle.style.cssText = `
             background-color: #f0f0f0;
             padding: 10px;
@@ -227,8 +326,13 @@ document.addEventListener("DOMContentLoaded", function () {
             justify-content: space-between;
             align-items: center;
         `;
-        
-        // Clear button (styled like send button)
+
+        // Title text
+        const titleText = document.createElement("span");
+        titleText.textContent = "Ask questions about this video";
+        chatTitle.appendChild(titleText);
+
+        // Clear button
         const clearButton = document.createElement("button");
         clearButton.textContent = "Clear";
         clearButton.title = "Clear chat";
@@ -249,8 +353,6 @@ document.addEventListener("DOMContentLoaded", function () {
             clearButton.style.backgroundColor = "#FF0000";
         });
         clearButton.addEventListener("click", clearChat);
-        
-        chatTitle.appendChild(titleText);
         chatTitle.appendChild(clearButton);
         chatContainer.appendChild(chatTitle);
         
@@ -300,7 +402,7 @@ document.addEventListener("DOMContentLoaded", function () {
         inputContainer.appendChild(chatInput);
         inputContainer.appendChild(sendButton);
         chatContainer.appendChild(inputContainer);
-        
+
         // Find a good place to insert the chat container
         const panoptoUI = document.getElementById("panopto-ui");
         panoptoUI.appendChild(chatContainer);
@@ -316,8 +418,25 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
         
-        // Initial assistant message
-        addChatMessage("assistant", "Hi! I've analyzed the transcript. What questions do you have about the content?");
+        // Populate with existing chat history or add initial message
+        if (chatHistory.length > 0) {
+            populateChatHistory();
+        } else {
+            // Initial assistant message - now returns formatted message object
+            const welcomeMessage = addChatMessage("assistant", "Hi! I've analyzed the transcript. What questions do you have about the content?");
+            
+            // Add to history and save it (now includes formatted HTML)
+            chatHistory.push(welcomeMessage);
+            
+            // Save the initial message
+            chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+                const currentTab = tabs[0];
+                const videoId = extractVideoId(currentTab.url);
+                if (videoId) {
+                    saveChatHistory(videoId);
+                }
+            });
+        }
     }
     
     // Clear chat function
@@ -325,8 +444,26 @@ document.addEventListener("DOMContentLoaded", function () {
         const chatMessages = document.getElementById("chat-messages");
         if (chatMessages) {
             chatMessages.innerHTML = "";
+            
+            // Reset chat history but keep initial welcome message
+            chatHistory = [{
+                role: "assistant",
+                content: "Hi! I've analyzed the transcript. What questions do you have about the content?"
+            }];
+            
             // Add back the initial assistant message
             addChatMessage("assistant", "Hi! I've analyzed the transcript. What questions do you have about the content?");
+            
+            // Save the cleared chat history
+            chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+                const currentTab = tabs[0];
+                const videoId = extractVideoId(currentTab.url);
+                if (videoId) {
+                    saveChatHistory(videoId);
+                }
+            });
+            
+            // Don't reset the button state here - keep it disabled if PanoptoPal was created
         }
     }
     
@@ -337,24 +474,59 @@ document.addEventListener("DOMContentLoaded", function () {
         
         if (!userMessage) return;
         
-        // Add user message to chat
-        addChatMessage("user", userMessage);
+        // Add message and get the message object with both versions
+        const messageObj = addChatMessage("user", userMessage);
+        
+        // Add to history
+        chatHistory.push(messageObj);
+        
+        // Save updated history
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+            const currentTab = tabs[0];
+            const videoId = extractVideoId(currentTab.url);
+            if (videoId) {
+                saveChatHistory(videoId);
+            }
+        });
         
         // Clear input
         chatInput.value = "";
         
         // Show thinking message
-        addChatMessage("assistant", "Thinking...", "thinking-message");
+        const thinkingMessage = addChatMessage("assistant", "Thinking...", "thinking-message");
+        chatHistory.push(thinkingMessage);
         
-        // Send to API
         askGroqAboutTranscript(userMessage, globalTranscript);
     }
     
+    function updateScrapeButtonState(created = false) {
+        const scrapeButton = document.getElementById("scrape-captions");
+        if (scrapeButton) {
+            scrapeButton.disabled = created;
+            scrapeButton.textContent = created ? "PanoptoPal Created" : "Create PanoptoPal";
+            scrapeButton.style.backgroundColor = created ? "#87CEFA" : "#4285f4"; // Green when created
+            // Remove any existing hover effects
+            scrapeButton.onmouseenter = null;
+            scrapeButton.onmouseleave = null;
+            
+            if (!created) {
+                // Restore normal hover effects for enabled state
+                scrapeButton.onmouseenter = () => {
+                    scrapeButton.style.backgroundColor = "#357ae8";
+                };
+                scrapeButton.onmouseleave = () => {
+                    scrapeButton.style.backgroundColor = "#4285f4";
+                };
+            }
+        }
+    }
+
     // Function to add message to chat
     function addChatMessage(role, content, messageId) {
         const chatMessages = document.getElementById("chat-messages");
         const messageDiv = document.createElement("div");
         messageDiv.className = `chat-message ${role}-message`;
+        
         if (messageId) {
             messageDiv.id = messageId;
         }
@@ -369,14 +541,69 @@ document.addEventListener("DOMContentLoaded", function () {
                 'background-color: #f1f0f0;'}
         `;
         
-        messageDiv.textContent = content;
+        // Special handling for thinking message
+        if (messageId === "thinking-message") {
+            messageDiv.classList.add("thinking-message");
+            messageDiv.innerHTML = `
+                <img src="uva_panopto_white_bg.png" class="thinking-spinner" alt="Loading">
+                ${content}
+            `;
+        } else {
+            // Generate and store both raw and formatted content
+            const formattedContent = renderEnhancedMarkdown(content);
+            messageDiv.innerHTML = formattedContent;
+        }
+        
         chatMessages.appendChild(messageDiv);
         
-        // Scroll to bottom
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Return both versions for storage
+        return {
+            raw: content,
+            formatted: messageDiv.innerHTML, // Store the actual HTML
+            role: role
+        };
+    }
+    function renderEnhancedMarkdown(text) {
+        if (!text) return '';
+        
+        // First remove ALL HTML tags from the input
+        const cleanText = removeAllHTMLTags(text);
+        
+        // Normalize all line breaks
+        let result = cleanText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        
+        // Process code blocks (triple backticks)
+        result = result.replace(/```([\s\S]*?)```/g, function(match, code) {
+            return '<pre><code>' + code.trim() + '</code></pre>';
+        });
+        
+        // Process inline code (single backticks)
+        result = result.replace(/`([^`]+)`/g, '<code>$1</code>');
+        
+        // Process bold text (double asterisks)
+        result = result.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        
+        // Process italic text (single asterisks)
+        result = result.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        
+        // Process bullet points (lines starting with *, -, or +)
+        result = result.replace(/^[\*\-+]\s+(.*$)/gm, '• $1');
+        
+        // Process paragraphs and line breaks
+        result = result.split('\n\n').map(paragraph => {
+            const trimmed = paragraph.trim();
+            if (!trimmed) return '';
+            return '<p>' + trimmed.replace(/\n/g, '<br>') + '</p>';
+        }).join('');
+        
+        return result;
     }
     
-    // Function to replace a specific message (used for the "thinking" message)
+    function removeAllHTMLTags(text) {
+        return text.replace(/<[^>]*>/g, '');
+    }
+    
+    // Function to replace a specific message
     function replaceMessage(messageId, newContent) {
         const messageElement = document.getElementById(messageId);
         if (messageElement) {
@@ -388,16 +615,13 @@ document.addEventListener("DOMContentLoaded", function () {
     function askGroqAboutTranscript(question, transcript) {
         console.log("Asking Groq about the transcript");
         
-        // API key
         const groqApiKey = "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"; 
         
-        // Check if API key is set
         if (!groqApiKey) {
             replaceMessage("thinking-message", "Error: API key not provided.");
             return;
         }
         
-        // Limit transcript length if too long
         const maxLength = 16000;
         const truncatedTranscript = transcript.length > maxLength 
             ? transcript.substring(0, maxLength) + "... (truncated for API limits)"
@@ -441,20 +665,29 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             
             const answer = data.choices[0].message.content;
-            
-            // Replace thinking message with the actual answer
-            const thinkingMessage = document.getElementById("thinking-message");
-            if (thinkingMessage) {
-                thinkingMessage.remove();
-            }
-            
-            // Add the answer
-            addChatMessage("assistant", answer);
+
+// Remove "Thinking..." placeholder
+const thinkingMessage = document.getElementById("thinking-message");
+if (thinkingMessage) {
+    thinkingMessage.remove();
+    chatHistory.pop(); // Remove the thinking message from history
+}
+
+// Add the answer to UI and history
+const answerMessage = addChatMessage("assistant", answer);
+chatHistory.push(answerMessage);
+
+// Save updated history
+chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    const currentTab = tabs[0];
+    const videoId = extractVideoId(currentTab.url);
+    if (videoId) {
+        saveChatHistory(videoId);
+    }
+});
         })
         .catch(error => {
             console.error("Error with Groq API chat:", error);
-            
-            // Replace thinking message with error
             replaceMessage("thinking-message", `Error getting answer: ${error.message}`);
         });
     }

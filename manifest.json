@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Panopto Caption Scraper",
+  "name": "PanoptoPal",
   "version": "1.0",
   "description": "Scrapes captions from Panopto videos on uva.hosted.panopto.com",
   "permissions": [
@@ -19,14 +19,14 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icon16.png",
-      "48": "icon48.png",
-      "128": "icon128.png"
+      "16": "panopto_logo.png",
+      "48": "panopto_logo.png",
+      "128": "panopto_logo.png"
     }
   },
   "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
+    "16": "panopto_logo.png",
+    "48": "panopto_logo.png",
+    "128": "panopto_logo.png"
   }
 }
